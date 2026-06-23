@@ -1,7 +1,8 @@
 import { getInstance } from './api/ibmi';
 import { window, ViewColumn } from 'vscode';
 import { NodeHtmlMarkdown } from "node-html-markdown";
-import { JSDOM } from "jsdom";
+import { parse as parseHtmlDoc } from "node-html-parser";
+import * as path from "path";
 import { CmdHelpChecker } from './components/cmdHelp/cmdHelpChecker';
 
 export interface CLDoc {
@@ -58,8 +59,7 @@ export class GenCmdDoc {
 
 	public static async generateHtml(object: string, library: string): Promise<string | undefined> {
 		const instance = getInstance();
-		if (!instance) return;
-		const connection = instance.getConnection();
+		const connection = instance?.getConnection();
 
 		if (connection) {
 			const content = connection.getContent();
@@ -67,21 +67,26 @@ export class GenCmdDoc {
 
 			const cmd = `${library}/${object}`;
 			const toStmf = `${library.replace('*', '')}_${object}`;
-			const toDir = config.tempDir;
+			const toDir = connection.getTempDirectory();
 			const generateResult = await connection.runCommand({
-				command: `GENCMDDOC CMD(${cmd}) GENOPT(*HTML *SHOWCHOICEPGMVAL) REPLACE(*YES) TOSTMF('${toStmf}') TODIR('${toDir}')`
+				command: `QSYS/GENCMDDOC CMD(${cmd}) GENOPT(*HTML *SHOWCHOICEPGMVAL) REPLACE(*YES) TOSTMF('${toStmf}') TODIR('${toDir}')`
 			});
 
 			if (generateResult.code === 0) {
-				const html = (await content.downloadStreamfileRaw(`${toDir}/${toStmf}`)).toString();
+				const htmlFilePath = path.posix.join(toDir, toStmf);
+				const html = (await content.downloadStreamfileRaw(htmlFilePath)).toString();
+
+				await connection.sendCommand({ command: `rm -rf ${htmlFilePath}` });
 				return html;
+			} else {
+				// Throw stdout from the result when command fails
+				throw new Error(generateResult.stdout || `GENCMDDOC command failed with code ${generateResult.code}`);
 			}
 		}
 	}
 
 	public static parseHtml(command: string, html: string): CLDoc | undefined {
-		const dom = new JSDOM(html);
-		const doc = dom.window.document;
+		const doc = parseHtmlDoc(html);
 		// Override default (https://github.com/crosstype/node-html-markdown/blob/master/src/config.ts#L53C17-L53C45) to avoid escaping asterisks
 		const htmlToMd = new NodeHtmlMarkdown({ globalEscape: [/[\\`_~\[\]]/gm, '\\$&'] });
 
@@ -95,12 +100,12 @@ export class GenCmdDoc {
 		// Get command description
 		const tdInfo = doc.querySelector('td[valign="top"][align="left"]');
 		const tdHtml = tdInfo?.innerHTML ?? ``;
-		const commandDiv = doc.querySelector(`div > a[name="${command}"]`)?.parentElement;
+		const commandDiv = doc.querySelector(`div > a[name="${command}"]`)?.parentNode;
 		const commandDivHtml = commandDiv?.innerHTML ?? ``;
 		const commandDescription = htmlToMd.translate(`${tdHtml}\n\n${commandDivHtml}`);
 
 		// Get parameter overview
-		const tableDiv = doc.querySelector(`div > h3 > a[name="${command}.PARAMETERS.TABLE"]`)?.parentElement?.parentElement;
+		const tableDiv = doc.querySelector(`div > h3 > a[name="${command}.PARAMETERS.TABLE"]`)?.parentNode?.parentNode;
 		const tableH3 = tableDiv?.querySelector(`h3`);
 		tableH3?.remove();
 		const tableTopOfPage = tableDiv?.querySelector(`table[width="100%"]`);
@@ -127,20 +132,20 @@ export class GenCmdDoc {
 
 		// Get parameter detail descriptions
 		parameterDetails.forEach(param => {
-			const parameterDiv = doc.querySelector(`div > a[name="${command}.${param.name}"]`)?.parentElement;
+			const parameterDiv = doc.querySelector(`div > a[name="${command}.${param.name}"]`)?.parentNode;
 			const parameterDivHtml = parameterDiv?.innerHTML ?? ``;
 			param.description = htmlToMd.translate(parameterDivHtml);
 		});
 
 		// Get examples
-		const examplesDiv = doc.querySelector(`div > h3 > a[name="${command}.COMMAND.EXAMPLES"]`)?.parentElement?.parentElement;
+		const examplesDiv = doc.querySelector(`div > h3 > a[name="${command}.COMMAND.EXAMPLES"]`)?.parentNode?.parentNode;
 		const examplesH3 = examplesDiv?.querySelector(`h3`);
 		examplesH3?.remove();
 		const examplesDivHtml = examplesDiv?.innerHTML ?? ``;
 		const examples = htmlToMd.translate(examplesDivHtml);
 
 		// Get error messages
-		const errorMessageDiv = doc.querySelector(`div > h3 > a[name="${command}.ERROR.MESSAGES"]`)?.parentElement?.parentElement;
+		const errorMessageDiv = doc.querySelector(`div > h3 > a[name="${command}.ERROR.MESSAGES"]`)?.parentNode?.parentNode;
 		const errorMessageH3 = errorMessageDiv?.querySelector(`h3`);
 		errorMessageH3?.remove();
 		const errorMessageDivHtml = errorMessageDiv?.innerHTML ?? ``;

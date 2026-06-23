@@ -24,7 +24,7 @@ export function getFileDefinition(object: string, library?: string): Promise<Fil
 	return connection.sendRequest("getFileDefinition", [object, library]);
 }
 
-export function getCLDoc(object: string, library?: string): Promise<{ html: string, doc: CLDoc } | undefined> {
+export function getCLDoc(object: string, library?: string): Promise<{ html: string, doc: CLDoc } | { error: string } | undefined> {
 	return connection.sendRequest("getCLDoc", [object, library]);
 }
 

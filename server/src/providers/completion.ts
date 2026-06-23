@@ -109,12 +109,23 @@ export async function completionProvider(params: CompletionParams): Promise<Comp
 						// We don't want to show parms that the user is already using
 						const existingParms: string[] = Object.keys(currentParms);
 						const availableParms: any[] = parms.filter((parm: any) => !existingParms.includes(parm.keyword));
-
+						const requiredParms: any[] = availableParms.filter(val=> val.required === true);
 						if (availableParms.length > 0) {
 							const item = CompletionItem.create(`All parameters`);
+							item.sortText = `0`;
 							item.kind = CompletionItemKind.Interface;
 							item.insertTextFormat = InsertTextFormat.Snippet;
 							item.insertText = availableParms.map((parm: any, idx: number) => `${parm.keyword}(\${${idx + 1}:})`).join(` `) + `\$0`;
+							item.detail = commandInfo.prompt;
+							items.push(item);
+						}
+
+						if(requiredParms.length > 0){
+							const item = CompletionItem.create(`Required parameters`);
+							item.sortText = `1`;
+							item.kind = CompletionItemKind.Interface;
+							item.insertTextFormat = InsertTextFormat.Snippet;
+							item.insertText = requiredParms.map((parm: any, idx: number) => `${parm.keyword}(\${${idx + 1}:})`).join(` `) + `\$0`;
 							item.detail = commandInfo.prompt;
 							items.push(item);
 						}
@@ -150,17 +161,18 @@ export async function completionResolveProvider(item: CompletionItem): Promise<C
 
 	if (data && data.commandName && data.name) {
 		const clDoc = await getCLDocSpec(data.commandName, data.commandLibrary);
-
 		if (clDoc) {
-			const parameterDoc = clDoc.doc.parameters.details.find(p => p.name === data.name);
-			if (parameterDoc && parameterDoc.description) {
-				// Remove the heading pattern: ### Parameter\n\n
-				const description = parameterDoc.description.replace(/^###[^\n]*\n\n/, '');
+			if (!('error' in clDoc)) {
+				const parameterDoc = clDoc.doc.parameters.details.find(p => p.name === data.name);
+				if (parameterDoc && parameterDoc.description) {
+					// Remove the heading pattern: ### Parameter\n\n
+					const description = parameterDoc.description.replace(/^###[^\n]*\n\n/, '');
 
-				item.documentation = {
-					kind: MarkupKind.Markdown,
-					value: description
-				};
+					item.documentation = {
+						kind: MarkupKind.Markdown,
+						value: description
+					};
+				}
 			}
 		}
 	}

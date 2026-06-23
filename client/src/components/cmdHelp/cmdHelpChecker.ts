@@ -39,7 +39,7 @@ export class CmdHelpChecker implements IBMiComponent {
 	private library: string | undefined;
 
 	getIdentification(): ComponentIdentification {
-		return { name: CmdHelpChecker.ID, version: this.currentVersion };
+		return { name: CmdHelpChecker.ID, version: this.currentVersion } as any;
 	}
 
 	static async get(): Promise<CmdHelpChecker | undefined> {
@@ -81,7 +81,7 @@ export class CmdHelpChecker implements IBMiComponent {
 
 			// Compile C++ module
 			const createModuleResult = await connection.runCommand({
-				command: `CRTCPPMOD MODULE(${library}/${CmdHelpChecker.PGM_NAME}) SRCSTMF('${cppPath}') LANGLVL(*EXTENDED0X) SYSIFCOPT(*IFS64IO) OUTPUT(*PRINT)`,
+				command: `QSYS/CRTCPPMOD MODULE(${library}/${CmdHelpChecker.PGM_NAME}) SRCSTMF('${cppPath}') LANGLVL(*EXTENDED0X) SYSIFCOPT(*IFS64IO) OUTPUT(*PRINT)`,
 				noLibList: true
 			});
 			if (createModuleResult.code !== 0) {
@@ -90,7 +90,7 @@ export class CmdHelpChecker implements IBMiComponent {
 
 			// Link program
 			const createProgramResult = await connection.runCommand({
-				command: `CRTPGM PGM(${library}/${CmdHelpChecker.PGM_NAME}) MODULE(${library}/${CmdHelpChecker.PGM_NAME}) ACTGRP(*CALLER)`,
+				command: `QSYS/CRTPGM PGM(${library}/${CmdHelpChecker.PGM_NAME}) MODULE(${library}/${CmdHelpChecker.PGM_NAME}) ACTGRP(*CALLER)`,
 				noLibList: true
 			});
 			if (createProgramResult.code !== 0) {
@@ -110,7 +110,7 @@ export class CmdHelpChecker implements IBMiComponent {
 
 			// Create UDTF
 			const createUdtfResult = await connection.runCommand({
-				command: `RUNSQLSTM SRCSTMF('${sqlPath}') COMMIT(*NONE) NAMING(*SYS)`,
+				command: `QSYS/RUNSQLSTM SRCSTMF('${sqlPath}') COMMIT(*NONE) NAMING(*SYS)`,
 				noLibList: true
 			});
 			if (createUdtfResult.code !== 0) {
