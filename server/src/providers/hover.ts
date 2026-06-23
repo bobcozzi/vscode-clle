@@ -17,7 +17,7 @@ export default async function hoverProvider(params: HoverParams): Promise<Hover 
 				const command = statement.getObject();
 				if (command) {
 					const commandName = command.name.toUpperCase();
-						const commandLibrary = command.library || '*LIBL';
+					const commandLibrary = command.library || '*LIBL';
 					// Parms in the existing statement
 					const currentParms = statement.getParms();
 
@@ -54,8 +54,13 @@ export default async function hoverProvider(params: HoverParams): Promise<Hover 
 					}
 
 						if ('error' in clDoc) {
-							return;
-						}
+						return;
+					}
+
+					if (currentParm) {
+						const parameterDoc = clDoc.doc.parameters.details.find(p => p.name === currentParm);
+						if (parameterDoc && parameterDoc.description) {
+							return {
 								contents: {
 									kind: MarkupKind.Markdown,
 									value: `${parameterDoc.description}${viewFullDoc}`
